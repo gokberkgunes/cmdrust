@@ -61,10 +61,11 @@ fn run(mut args: Args) -> Result<()> {
             Ok(file) => {
                 //println!("{}", count_bytes_buffered(file));
                 let line_word_byte = count_buffered(file);
-                println!("{}{}{}{}",
+                println!("{}{}{}{}{}",
                     if args.lines { format!("{:>8}",line_word_byte[0]) } else { "".to_string() },
                     if args.words { format!("{:>8}",line_word_byte[1]) } else { "".to_string() },
                     if args.bytes { format!("{:>8}",line_word_byte[2]) } else { "".to_string() },
+                    if args.chars { format!("{:>8}",line_word_byte[3]) } else { "".to_string() },
                     if filename != "-" { format!{" {}", filename} } else { "".to_string() },
                 );
                 sum_lines += line_word_byte[0];
@@ -84,17 +85,19 @@ fn run(mut args: Args) -> Result<()> {
 }
 
 
-fn count_buffered(mut file: Box<dyn BufRead>) -> [usize; 3] {
+fn count_buffered(mut file: Box<dyn BufRead>) -> [usize; 4] {
     let mut buffer = [0; 1024]; // Fill this array over and over. 1kB per turn.
+    let mut total_chars: usize = 0;
     let mut total_bytes: usize = 0;
     let mut total_lines: usize = 0;
     let mut total_words: usize = 0;
     let mut in_word: bool = false;
     loop {
         match file.read(&mut buffer) {
-            Ok(0) => return [total_lines, total_words, total_bytes],
+            Ok(0) => return [total_lines, total_words, total_bytes, total_chars],
             Ok(v) => {
                 total_bytes += v;
+                total_chars += String::from_utf8_lossy(&buffer[..v]).len();
                 total_lines += buffer[..v].iter().filter(|&&byte| byte == b'\n').count(); 
 
                 // Count characters, C style.
