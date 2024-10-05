@@ -54,6 +54,7 @@ fn run(mut args: Args) -> Result<()> {
     let mut sum_lines = 0;
     let mut sum_words = 0;
     let mut sum_bytes = 0;
+    let mut sum_chars = 0;
 
     for filename in &args.files {
         match open(filename) {
@@ -71,14 +72,16 @@ fn run(mut args: Args) -> Result<()> {
                 sum_lines += line_word_byte[0];
                 sum_words += line_word_byte[1];
                 sum_bytes += line_word_byte[2];
+                sum_chars += line_word_byte[3];
             }
         }
     }
     if &args.files.len() > &1  {
-                println!("{}{}{} total",
+                println!("{}{}{}{} total",
                     if args.lines { format!("{:>8}", sum_lines) } else { "".to_string() },
                     if args.words { format!("{:>8}", sum_words) } else { "".to_string() },
                     if args.bytes { format!("{:>8}", sum_bytes) } else { "".to_string() },
+                    if args.chars { format!("{:>8}", sum_chars) } else { "".to_string() },
                 )
     }
     Ok(())
