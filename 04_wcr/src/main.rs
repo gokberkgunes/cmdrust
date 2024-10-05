@@ -11,7 +11,10 @@ struct Args {
     #[arg(value_name = "FILE", default_value = "-")]
     files: Vec<String>,
 
-    #[arg(short = 'w', long = "words", default_value = false)]
+    #[arg(short = 'l', long = "lines", default_value_t = false)]
+    lines: bool,
+
+    #[arg(short = 'w', long = "words", default_value_t = false)]
     words: bool,
 
     #[arg(short = 'c', long = "bytes", default_value_t = false)]
@@ -20,13 +23,11 @@ struct Args {
     #[arg(short = 'm', long = "chars", conflicts_with = "bytes", default_value_t = false)]
     chars: bool,
 
-    #[arg(short = 'l', long = "lines", default_value_t = false)]
-    lines: bool,
 }
 
 
 fn main() {
-    let mut args = Args::parse();
+    let args = Args::parse();
     if let Err(e) = run(args) {
         eprintln!("ERROR: {e}");
         std::process::exit(1);
@@ -34,7 +35,7 @@ fn main() {
 }
 
 fn run(mut args: Args) -> Result<()> {
-    dbg!(&args);
+    //dbg!(&args);
     // When there are no explicit arguments, every argument will kept as false. 
     // Then, we can set the default behavior as having words, lines and bytes.
     // In book this is done by 
@@ -42,18 +43,65 @@ fn run(mut args: Args) -> Result<()> {
     // - adding an iterator to it to find false values
     if [args.words, args.bytes, args.chars, args.lines]
         .iter()
-        .all(|v| v == &false)
+        .all(|v| v == &false) // .all() tests and if any element is not, returns false
     {
         args.words = true;
-        args.byte = true;
+        args.bytes = true;
         args.lines = true;
     }
 
-    set_variables(args);
-    return Ok(())
+    for filename in &args.files {
+        match open(filename) {
+            Err(e) => eprintln!("ERROR: {}, {}", filename, e),
+            Ok(file) => {
+                //println!("{}", count_bytes_buffered(file));
+                let line_word_byte = count_buffered(file);
+                println!("{}{}{}{}",
+                    if args.lines { format!("{:>8}",line_word_byte[0]) } else { "".to_string() },
+                    if args.words { format!("{:>8}",line_word_byte[1]) } else { "".to_string() },
+                    if args.bytes { format!("{:>8}",line_word_byte[2]) } else { "".to_string() },
+                    if filename != "-" { format!{" {}", filename} } else { "".to_string() },
+                )
+            }
+        }
+    }
+    Ok(())
 }
 
 
+fn count_buffered(mut file: Box<dyn BufRead>) -> [usize; 3] {
+    let mut buffer = [0; 1024]; // Fill this array over and over. 1kB per turn.
+    let mut total_bytes: usize = 0;
+    let mut total_lines: usize = 0;
+    let mut total_words: usize = 0;
+    let mut in_word: bool = false;
+    loop {
+        match file.read(&mut buffer) {
+            Ok(0) => return [total_lines, total_words, total_bytes],
+            Ok(v) => {
+                total_bytes += v;
+                total_lines += buffer[..v].iter().filter(|&&byte| byte == b'\n').count(); 
+
+                // Count characters, C style.
+                for &c in &buffer[..v] {
+                    if c == b'\n' || c == b' ' || c == b'\t' {
+                        if in_word == true  {
+                            total_words += 1;
+                            in_word = false;
+                        }
+                    } else {
+                            in_word = true;
+                    }
+
+                }
+                // Below approach fails cause we read 1kB which could cut words into two; thus,
+                // counting one word as two. We could've fixed it if we stop reading at whitspace.
+                //total_words = std::str::from_utf8(&buffer[..v]).unwrap().split_whitespace().count();
+            },
+            Err(e) => panic!("ERROR: {e}"),
+        }
+    }
+}
 
 fn open(filename: &str) -> Result<Box<dyn BufRead>>{
     match filename {
